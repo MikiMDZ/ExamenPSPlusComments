@@ -20,6 +20,7 @@ class ServerController(
     val type = "AES/ECB/PKCS5Padding"
 
     //curl --request POST  --header "Content-type:application/json; charset=utf-8" --data "{\"nombre\":\"U4\",\"pass\":\"123\"}" localhost:8083/crearUsuario
+    // CLAVE ALEATORIA DE 20 DIJITOS
     fun clavealeatorio(): String {
         val tamano = 20
         var cadena = ""
@@ -31,17 +32,22 @@ class ServerController(
         return cadena
     }
 
-
+    // curl --request POST  --header "Content-type:application/json; charset=utf-8" --data "{\"nombre\":\"U4\",\"pass\":\"123\"}" localhost:8083/crearUsuario
+    //CREAR UN USUARIO CON NOMBRE Y CONTRASEÑA
     @PostMapping("crearUsuario")
     fun crearUsuario(@RequestBody usuario: Usuario): Any? {
         var retorno: Any? = null
         var bool = false
-        if (userrepositorio.findAll().size < 1) {
+        if (userrepositorio.findAll().size < 1) { // COMPROBAR SI TIENE ALGUN USUARIO CREADO
 
+            //SI NO TIENE NINGUN USUARIO LO CREA, LO GUARDA Y MOSTRAMOS SU CLAVE SECRETA
             val usuario = User(usuario.nombre, usuario.pass, clavealeatorio())
             userrepositorio.save(usuario)
             retorno = usuario.clavecifrado
+
         } else {
+
+            // SI EXISTEN USUARIOS, COMPROBAMOS SI EXISTE EL NOMBRE,CONTRASEÑA Y DEVOLVEMOS LA CLAVE
             userrepositorio.findAll().forEach {
                 if (it.nombre == usuario.nombre) {
                     if (it.pass == usuario.pass) {
@@ -63,12 +69,18 @@ class ServerController(
         return retorno
     }
 
+    // curl --request POST  --header "Content-type:application/json" --data "{\"texto\":\"TextoCifrado\",\"usuarioId\":\"U1\",\"id\":0}" localhost:8083/crearMensaje
+    // CREAMOS EL MENSAJE CON SU TEXTO Y EL NOMBRE DEL USUARIO
     @PostMapping("crearMensaje")
     fun crearMensaje(@RequestBody mensaje: Mensaje): Any? {
         var retorno: Any? = null
         var bool = false
+
+        //COMPROBAR QUE EL NOMBRE DEL USUARIO ES IGUAL AL ID DEL USUARIO COINCIDEN
+        //SI COINIDE EL NOMBRE CON EL ID CIFRAZOS EL MENSAJE Y LO GUARDAMOS AL LADO DEL ID
         userrepositorio.findAll().forEach {
             if (it.nombre == mensaje.usuarioId) {
+                println(cifrar(mensaje.texto,it.clavecifrado))
                 mensajeRepository.save(Mensaje(mensaje.texto, mensaje.usuarioId))
                 retorno = "Success"
                 bool = true
@@ -78,10 +90,11 @@ class ServerController(
         }
         if (!bool) retorno = Errortype(2, "Usuario inexistente")
         return retorno
-
-
     }
 
+
+    // curl -v localhost:8083/descargarMensajes
+    //NOS DEVUELVE TODOS LOS MENSAJES GUARDADOS
     @GetMapping("descargarMensajes")
     fun descargarMensajes(): Retorno {
         val lista = mensajeRepository.findAll()
@@ -89,14 +102,15 @@ class ServerController(
         /*val gson = Gson()
         return gson.toJson(retorno)*/
         return retorno
-
-
     }
 
+    // curl --request GET  --header "Content-type:application/json" --data "Hola" localhost:8083/descargarMensajesFiltrados
+    // DESCARR MENSAJES FILTRADOS
     @GetMapping("descargarMensajesFiltrados")
     fun descargar(@RequestBody mensaje: String): Retorno {
         val lista = mutableListOf<Mensaje>()
-
+        //RECORRER DONDE ESTAN TODOS LOS MENSAJES
+        //LE DAMOS UNA PALABRA Y TENEMOS QUE COMPROBAR SI EXISTE EN EL MENSAJE
         mensajeRepository.findAll().forEach {
             if (it.texto.contains(mensaje))
                 lista.add(it)
@@ -105,11 +119,16 @@ class ServerController(
         return retorno
     }
 
+    // curl --request GET  --header "Content-type:application/json" --data "{\"nombre\":\"DAM2\",\"pass\":\"123456\"}" localhost:8083/obtenerMensajesYLlaves
+    //METER USUARIO Y CONTRASEÑA DEL ADMIN,
+    //SI ES CORRECTO TE DEVUELVE TODOS LOS USUARIOS CREADOS CON USUS CLAVES CIFRADAS
     @GetMapping("obtenerMensajesYLlaves")
     fun obtenermensajesyllaves(@RequestBody usuario: Usuario): Any {
 
+        //COMPROBAR CREDENCIALES
         if (adminrepositorio.findAll()[0].Nombre == usuario.nombre && adminrepositorio.findAll()[0].Pass == usuario.pass) {
             val lista = mutableListOf<Userfiltrado>()
+            //MOSTRAR LOS USUARIOS CON SUS CLAVES
             userrepositorio.findAll().forEach {
                 lista.add(Userfiltrado(it.nombre, it.clavecifrado))
             }
@@ -119,10 +138,14 @@ class ServerController(
 
     }
 
+    // curl --request GET  --header "Content-type:application/json" --data "{\"nombre\":\"DAM2\",\"pass\":\"123456\"}" localhost:8083/obtenerMensajesDescifrados
+    // SI PONGO BIEN LAS CREDENCIALES DEL ADMIN DEVUELVE TODOS LOS MENSAJES DESCIFRADOS
     @GetMapping("obtenerMensajesDescifrados")
     fun obtenerdescifrados(@RequestBody usuario: Usuario): Any {
         val listaa = mutableListOf<MensajeAdmin>()
+        //COMPROBAR QUE LAS CREDENCIALES SON CORRECTAS
         return if (adminrepositorio.findAll()[0].Nombre == usuario.nombre && adminrepositorio.findAll()[0].Pass == usuario.pass) {
+            //MOSTRAR TODOS LOS MENSAJES DESCIFRADOS
             mensajeRepository.findAll().forEach {
                 try {
                     it.texto = descifrar(it.texto, obtenerclavecifrado(it.usuarioId))
@@ -137,6 +160,7 @@ class ServerController(
 
     }
 
+    //FUNCION PARA OBTENER CLAVE CIFRADA
     fun obtenerclavecifrado(user: String): String {
         var clave = ""
         userrepositorio.findAll().forEach {
@@ -145,7 +169,6 @@ class ServerController(
         }
         return clave
     }
-
 
     private fun cifrar(textoEnString: String, llaveEnString: String): String {
         //println("Voy a cifrar: $textoEnString")
